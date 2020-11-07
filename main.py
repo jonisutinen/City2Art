@@ -216,7 +216,7 @@ def update_image_pool(pool, images, max_size=50):
 # train cyclegan models
 def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset):
 	# define properties of the training run
-	n_epochs, n_batch, = 1, 1
+	n_epochs, n_batch, = 50, 1
 	# determine the output square shape of the discriminator
 	n_patch = d_model_A.output_shape[1]
 	# unpack dataset
@@ -226,8 +226,8 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
 	# calculate the number of batches per training epoch
 	bat_per_epo = int(len(trainA) / n_batch)
 	# calculate the number of training iterations
-	#n_steps = bat_per_epo * n_epochs
-	n_steps = 800
+	n_steps = bat_per_epo * n_epochs
+	#n_steps = 800
 	# manually enumerate epochs
 	for i in range(n_steps):
 		print("Epochs: {0}/{1}".format(i, n_steps))
