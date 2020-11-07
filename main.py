@@ -233,8 +233,8 @@ def train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset):
 	# calculate the number of batches per training epoch
 	bat_per_epo = int(len(trainA) / n_batch)
 	# calculate the number of training iterations
-	#n_steps = bat_per_epo * n_epochs
-	n_steps = 100
+	n_steps = bat_per_epo * n_epochs
+	#n_steps = 100
 	# manually enumerate epochs
 	for i in range(n_steps):
 		print("Epochs: {0}/{1}".format(i, n_steps))
