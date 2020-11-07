@@ -12,7 +12,7 @@ import tensorflow as tf
 import loadimages
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus[0]:
+if gpus:
 	tf.config.experimental.set_memory_growth(gpus[0], True)
 	tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
 
