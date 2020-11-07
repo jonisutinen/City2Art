@@ -1,8 +1,6 @@
 from os import listdir
-from numpy import asarray
-from numpy import vstack
-from keras.preprocessing.image import img_to_array
-from keras.preprocessing.image import load_img
+from numpy import asarray, vstack
+from keras.preprocessing.image import img_to_array, load_img
 from numpy import savez_compressed
 
 # load all images in a directory into memory
