@@ -283,5 +283,4 @@ def main():
 	# train models
 	train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset)
 
-
 main()
