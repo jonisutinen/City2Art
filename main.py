@@ -262,6 +262,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
 			# save the models
 			save_models(i, g_model_AtoB, g_model_BtoA)
 
+def main():
 # load image data
 dataset = load_real_samples('city2art_256.npz')
 print('Loaded', dataset[0].shape, dataset[1].shape)
@@ -281,3 +282,7 @@ c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, ima
 c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
 # train models
 train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset)
+
+
+
+main()
