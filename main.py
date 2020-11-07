@@ -8,12 +8,11 @@ from keras.models import Model, Input
 from keras.layers import Conv2D, Conv2DTranspose, LeakyReLU, Activation, Concatenate
 from keras_contrib.layers.normalization.instancenormalization import InstanceNormalization
 from matplotlib import pyplot
-from datetime import datetime
 import tensorflow as tf
 import loadimages
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
+if gpus[0]:
 	tf.config.experimental.set_memory_growth(gpus[0], True)
 	tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
 
@@ -171,7 +170,7 @@ def save_models(step, g_model_BtoA):
 	filename1 = 'g_model_AtoB_%06d.h5' % (step+1)
 	g_model_AtoB.save(filename1)
 	"""
-	filename = 'models/BtoA-%06d_%s.h5' % ((step+1), datetime.now())
+	filename = 'models/g_model_BtoA_%06d.h5' % (step+1)
 	g_model_BtoA.save(filename)
 	print('>Saved: %s' % (filename))
 
@@ -195,7 +194,7 @@ def summarize_performance(step, g_model, trainX, name, n_samples=5):
 		pyplot.subplot(2, n_samples, 1 + n_samples + i)
 		pyplot.axis('off')
 		pyplot.imshow(X_out[i])
-	filename = '%s-%06d_%s.png' % (name, (step+1), datetime.now())
+	filename = '%s_generated_plot_%06d.png' % (name, (step+1))
 	pyplot.savefig('generated/' + filename)
 	pyplot.close()
 
