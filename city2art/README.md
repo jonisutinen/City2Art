@@ -1,7 +1,7 @@
 # City2Art
 ### Place images here
 
-A for art
+A for art,
 B for cities
 
 * trainA/

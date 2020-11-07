@@ -1,2 +1,5 @@
 *.npz
 *.jpg
+*.png
+*.txt
+*.h5

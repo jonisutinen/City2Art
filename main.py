@@ -1,3 +1,4 @@
+from os import listdir, path
 from random import random
 from numpy import load
 from numpy import zeros
@@ -15,8 +16,10 @@ from keras.layers import Activation
 from keras.layers import Concatenate
 from keras_contrib.layers.normalization.instancenormalization import InstanceNormalization
 from matplotlib import pyplot
+import tensorflow as tf
 
 #gpus = tf.config.experimental.list_physical_devices('GPU')
+#tf.config.experimental.set_memory_growth(gpus[0], True)
 #tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
 
 # define the discriminator model
@@ -162,14 +165,17 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	return X, y
 
 # save the generator models to file
-def save_models(step, g_model_AtoB, g_model_BtoA):
+def save_models(step, g_model_BtoA):
+	'''
 	# save the first generator model
 	filename1 = 'g_model_AtoB_%06d.h5' % (step+1)
 	g_model_AtoB.save(filename1)
+	'''
 	# save the second generator model
-	filename2 = 'g_model_BtoA_%06d.h5' % (step+1)
-	g_model_BtoA.save(filename2)
-	print('>Saved: %s and %s' % (filename1, filename2))
+	filename = 'models/g_model_BtoA_%06d.h5' % (step+1)
+	g_model_BtoA.save(filename)
+	#print('>Saved: %s and %s' % (filename1, filename2))
+	print('>Saved: %s' % (filename))
 
 # generate samples and save as a plot and save the model
 def summarize_performance(step, g_model, trainX, name, n_samples=5):
@@ -191,8 +197,8 @@ def summarize_performance(step, g_model, trainX, name, n_samples=5):
 		pyplot.axis('off')
 		pyplot.imshow(X_out[i])
 	# save plot to file
-	filename1 = '%s_generated_plot_%06d.png' % (name, (step+1))
-	pyplot.savefig(filename1)
+	filename = '%s_generated_plot_%06d.png' % (name, (step+1))
+	pyplot.savefig('generated/' + filename)
 	pyplot.close()
 
 # update image pool for fake images
@@ -214,7 +220,8 @@ def update_image_pool(pool, images, max_size=50):
 	return asarray(selected)
 
 # train cyclegan models
-def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset):
+#def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset):
+def train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset):
 	# define properties of the training run
 	n_epochs, n_batch, = 50, 1
 	# determine the output square shape of the discriminator
@@ -226,8 +233,8 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
 	# calculate the number of batches per training epoch
 	bat_per_epo = int(len(trainA) / n_batch)
 	# calculate the number of training iterations
-	n_steps = bat_per_epo * n_epochs
-	#n_steps = 800
+	#n_steps = bat_per_epo * n_epochs
+	n_steps = 100
 	# manually enumerate epochs
 	for i in range(n_steps):
 		print("Epochs: {0}/{1}".format(i, n_steps))
@@ -236,31 +243,39 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
 		X_realB, y_realB = generate_real_samples(trainB, n_batch, n_patch)
 		# generate a batch of fake samples
 		X_fakeA, y_fakeA = generate_fake_samples(g_model_BtoA, X_realB, n_patch)
-		X_fakeB, y_fakeB = generate_fake_samples(g_model_AtoB, X_realA, n_patch)
+		#X_fakeB, y_fakeB = generate_fake_samples(g_model_AtoB, X_realA, n_patch)
 		# update fakes from pool
 		X_fakeA = update_image_pool(poolA, X_fakeA)
-		X_fakeB = update_image_pool(poolB, X_fakeB)
+		#X_fakeB = update_image_pool(poolB, X_fakeB)
 		# update generator B->A via adversarial and cycle loss
 		g_loss2, _, _, _, _  = c_model_BtoA.train_on_batch([X_realB, X_realA], [y_realA, X_realA, X_realB, X_realA])
 		# update discriminator for A -> [real/fake]
 		dA_loss1 = d_model_A.train_on_batch(X_realA, y_realA)
 		dA_loss2 = d_model_A.train_on_batch(X_fakeA, y_fakeA)
+		
 		# update generator A->B via adversarial and cycle loss
-		g_loss1, _, _, _, _ = c_model_AtoB.train_on_batch([X_realA, X_realB], [y_realB, X_realB, X_realA, X_realB])
+		#g_loss1, _, _, _, _ = c_model_AtoB.train_on_batch([X_realA, X_realB], [y_realB, X_realB, X_realA, X_realB])
 		# update discriminator for B -> [real/fake]
-		dB_loss1 = d_model_B.train_on_batch(X_realB, y_realB)
-		dB_loss2 = d_model_B.train_on_batch(X_fakeB, y_fakeB)
+		#dB_loss1 = d_model_B.train_on_batch(X_realB, y_realB)
+		#dB_loss2 = d_model_B.train_on_batch(X_fakeB, y_fakeB)
+		
 		# summarize performance
-		print('>%d, dA[%.3f,%.3f] dB[%.3f,%.3f] g[%.3f,%.3f]' % (i+1, dA_loss1,dA_loss2, dB_loss1,dB_loss2, g_loss1,g_loss2))
+		#print('>%d, dA[%.3f,%.3f] dB[%.3f,%.3f] g[%.3f,%.3f]' % (i+1, dA_loss1,dA_loss2, dB_loss1,dB_loss2, g_loss1,g_loss2))
+		print('>%d, dA[%.3f,%.3f] g[%.3f]' % (i+1, dA_loss1,dA_loss2,g_loss2))
 		# evaluate the model performance every so often
-		if (i+1) % (bat_per_epo * 1) == 0:
+		#if (i+1) % (bat_per_epo * 1) == 0:
+		if (i+1) % (100) == 0:
+			'''
 			# plot A->B translation
 			summarize_performance(i, g_model_AtoB, trainA, 'AtoB')
+			'''
 			# plot B->A translation
 			summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
-		if (i+1) % (bat_per_epo * 5) == 0:
+		#if (i+1) % (bat_per_epo * 5) == 0:
+		if (i+1) % (500) == 0:
 			# save the models
-			save_models(i, g_model_AtoB, g_model_BtoA)
+			#save_models(i, g_model_AtoB, g_model_BtoA)
+			save_models(i, g_model_BtoA)
 
 def main():
 	# load image data
@@ -270,17 +285,26 @@ def main():
 	image_shape = dataset[0].shape[1:]
 	# generator: A -> B
 	g_model_AtoB = define_generator(image_shape)
-	# generator: B -> A
-	g_model_BtoA = define_generator(image_shape)
 	# discriminator: A -> [real/fake]
 	d_model_A = define_discriminator(image_shape)
+	# generator: B -> A
+	g_model_BtoA = define_generator(image_shape)
 	# discriminator: B -> [real/fake]
-	d_model_B = define_discriminator(image_shape)
+	#d_model_B = define_discriminator(image_shape)
 	# composite: A -> B -> [real/fake, A]
-	c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, image_shape)
+	#c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, image_shape)
 	# composite: B -> A -> [real/fake, B]
 	c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
-	# train models
-	train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset)
 
-main()
+	'''
+	model = 'models/g_model_BtoA_009620.h5'
+	if (path.isfile(model)):
+		cust = {'InstanceNormalization': InstanceNormalization}
+		g_model_BtoA = tf.keras.models.load_model(model, cust)
+	'''
+	# train models
+	#train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset)
+	train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset)
+
+if __name__ == "__main__":
+    main()
