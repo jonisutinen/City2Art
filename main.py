@@ -258,7 +258,6 @@ def main():
 	g_model_AtoB = define_generator(image_shape)
 	d_model_A = define_discriminator(image_shape)
 	g_model_BtoA = define_generator(image_shape)
-	c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
 	"""
 	# load model
 	model = 'models/g_model_BtoA_009620.h5'
@@ -267,6 +266,7 @@ def main():
 		g_model_BtoA = tf.keras.models.load_model(model, cust)
 		print("Model loaded")
 	"""
+	c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
 	train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset)
 
 if __name__ == "__main__":
