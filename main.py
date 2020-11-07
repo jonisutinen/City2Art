@@ -265,6 +265,7 @@ def main():
 	if (path.isfile(model)):
 		cust = {'InstanceNormalization': InstanceNormalization}
 		g_model_BtoA = tf.keras.models.load_model(model, cust)
+		print("Model loaded")
 	"""
 	train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset)
 
