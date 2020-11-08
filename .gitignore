@@ -4,3 +4,4 @@
 *.txt
 *.h5
 *.pyc
+.vscode/*
