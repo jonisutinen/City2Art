@@ -66,14 +66,14 @@ def resnet_block(n_filters, input_layer):
 	return g
 
 
-def define_generator(image_shape, n_resnet=9):
+def define_generator(shape, n_resnet=9):
 	"""
-	:param image_shape:
+	:param shape:
 	:param n_resnet: default 9
 	:return: model
 	"""
 	init = RandomNormal(stddev=0.02)
-	in_image = Input(shape=image_shape)
+	in_image = Input(shape=shape)
 
 	g = Conv2D(64, (7, 7), padding='same', kernel_initializer=init)(in_image)
 	g = InstanceNormalization(axis=-1)(g)
@@ -106,25 +106,25 @@ def define_generator(image_shape, n_resnet=9):
 	return model
 
 
-def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
+def define_composite_model(generator_1, discriminator, generator_2, shape):
 	"""
-	:param g_model_1:
-	:param d_model:
-	:param g_model_2:
-	:param image_shape:
+	:param generator_1:
+	:param discriminator:
+	:param generator_2:
+	:param shape:
 	:return: model
 	"""
-	g_model_1.trainable = True
-	d_model.trainable = False
-	g_model_2.trainable = False
-	input_gen = Input(shape=image_shape)
-	gen1_out = g_model_1(input_gen)
-	output_d = d_model(gen1_out)
-	input_id = Input(shape=image_shape)
-	output_id = g_model_1(input_id)
-	output_f = g_model_2(gen1_out)
-	gen2_out = g_model_2(input_id)
-	output_b = g_model_1(gen2_out)
+	generator_1.trainable = True
+	discriminator.trainable = False
+	generator_2.trainable = False
+	input_gen = Input(shape=shape)
+	gen1_out = generator_1(input_gen)
+	output_d = discriminator(gen1_out)
+	input_id = Input(shape=shape)
+	output_id = generator_1(input_id)
+	output_f = generator_2(gen1_out)
+	gen2_out = generator_2(input_id)
+	output_b = generator_1(gen2_out)
 	model = Model([input_gen, input_id], [output_d, output_id, output_f, output_b])
 	opt = Adam(lr=0.0002, beta_1=0.5)
 	model.compile(loss=['mse', 'mae', 'mae', 'mae'], loss_weights=[1, 5, 10, 10], optimizer=opt)
@@ -224,16 +224,16 @@ def update_image_pool(pool, images, max_size=50):
 	return asarray(selected)
 
 
-def train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset):
+def train(discriminator_a, generator_ab, generator_ba, composite_ba, dataset):
 	"""
-	:param d_model_A:
-	:param g_model_AtoB:
-	:param g_model_BtoA:
-	:param c_model_BtoA:
+	:param discriminator_a:
+	:param generator_ab:
+	:param generator_ba:
+	:param composite_ba:
 	:param dataset:
 	"""
 	n_epochs, n_batch, = 500, 1
-	n_patch = d_model_A.output_shape[1]
+	n_patch = discriminator_a.output_shape[1]
 	trainA, trainB = dataset
 	poolA = list()
 	bat_per_epo = int(len(trainA) / n_batch)
@@ -242,18 +242,18 @@ def train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset):
 		print("Epochs: {0}/{1}".format(i, n_steps))
 		X_realA, y_realA = generate_real_samples(trainA, n_batch, n_patch)
 		X_realB, y_realB = generate_real_samples(trainB, n_batch, n_patch)
-		X_fakeA, y_fakeA = generate_fake_samples(g_model_BtoA, X_realB, n_patch)
+		X_fakeA, y_fakeA = generate_fake_samples(generator_ba, X_realB, n_patch)
 		X_fakeA = update_image_pool(poolA, X_fakeA)
 
-		g_loss2, _, _, _, _ = c_model_BtoA.train_on_batch([X_realB, X_realA], [y_realA, X_realA, X_realB, X_realA])
-		dA_loss1 = d_model_A.train_on_batch(X_realA, y_realA)
-		dA_loss2 = d_model_A.train_on_batch(X_fakeA, y_fakeA)
+		g_loss, _, _, _, _ = composite_ba.train_on_batch([X_realB, X_realA], [y_realA, X_realA, X_realB, X_realA])
+		d_a_loss1 = discriminator_a.train_on_batch(X_realA, y_realA)
+		d_a_loss2 = discriminator_a.train_on_batch(X_fakeA, y_fakeA)
 
-		print('>%d, dA[%.3f,%.3f] g[%.3f]' % (i + 1, dA_loss1, dA_loss2, g_loss2))
+		print('>%d, dA[%.3f,%.3f] g[%.3f]' % (i + 1, d_a_loss1, d_a_loss2, g_loss))
 		if (i + 1) % 100 == 0:
-			summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
+			summarize_performance(i, generator_ba, trainB, 'BtoA')
 		if (i + 1) % 2500 == 0:
-			save_models(i, g_model_BtoA)
+			save_models(i, generator_ba)
 
 
 def main():
@@ -262,19 +262,19 @@ def main():
 	dataset = load_real_samples('city2art_256.npz')
 	print('Loaded', dataset[0].shape, dataset[1].shape)
 	image_shape = dataset[0].shape[1:]
-	g_model_AtoB = define_generator(image_shape)
-	d_model_A = define_discriminator(image_shape)
-	g_model_BtoA = define_generator(image_shape)
+	generator_ab = define_generator(image_shape)
+	discriminator_a = define_discriminator(image_shape)
+	generator_ba = define_generator(image_shape)
 	"""
 	# load model
 	model = 'models/g_model_BtoA_009620.h5'
 	if (path.isfile(model)):
 		cust = {'InstanceNormalization': InstanceNormalization}
-		g_model_BtoA = tf.keras.models.load_model(model, cust)
+		generator_ba = tf.keras.models.load_model(model, cust)
 		print("Model loaded")
 	"""
-	c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
-	train(d_model_A, g_model_AtoB, g_model_BtoA, c_model_BtoA, dataset)
+	composite_ba = define_composite_model(generator_ba, discriminator_a, generator_ab, image_shape)
+	train(discriminator_a, generator_ab, generator_ba, composite_ba, dataset)
 
 
 if __name__ == "__main__":
