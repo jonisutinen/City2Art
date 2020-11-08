@@ -1,6 +1,7 @@
 from os import listdir, path
 from random import random
 import tensorflow as tf
+from tensorflow import keras
 from keras.initializers import RandomNormal
 from keras.layers import Activation, Concatenate, Conv2D, Conv2DTranspose, LeakyReLU
 from keras.models import Input, Model
@@ -17,88 +18,112 @@ if gpus:
 	tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
 
 
+#define globals
+kernel_init = RandomNormal(mean=0.0, stddev=0.02)
+epochs = 500
+batch_size = 1
+res_blocks = 9 #9 residual blocks for image size 256x256 (or higher), if image size 128x128 -> use 6 residual blocks
+
+def downsample(x, filters, activation, kernel_size=(3, 3), strides=(2, 2), padding='same'):
+    """
+    docstring
+    """
+    x = Conv2D(filters,kernel_size,strides=strides,kernel_initializer=kernel_init,padding=padding)(x)
+    x = InstanceNormalization(axis=-1)(x)
+    if activation:
+        x = activation(x)
+    
+    return x
+
+def residual_block(n_filters, input_layer):
+	"""
+	:param n_filters:
+	:param input_layer:
+	:return: x
+	"""
+	x = Conv2D(n_filters, (3, 3), padding='same', kernel_initializer=kernel_init)(input_layer)
+	x = InstanceNormalization(axis=-1)(x)
+	x = Activation('relu')(x)
+	x = Conv2D(n_filters, (3, 3), padding='same', kernel_initializer=kernel_init)(x)
+	x = InstanceNormalization(axis=-1)(x)
+	x = Concatenate()([x, input_layer])
+	return x
+
+def upsample(x, filters,activation,kernel_size=(3, 3),strides=(2, 2),padding="same"):
+    """
+    docstring
+    """
+    x = Conv2DTranspose(filters,kernel_size,strides=strides,kernel_initializer=kernel_init,padding=padding)(x)
+    x = InstanceNormalization(axis=-1)(x)
+    if activation:
+        x = activation(x)
+
+    return x
+
+
 def define_discriminator(image_shape):
 	"""
+    The discriminator architecture is: 
+    C64(no InstanceNorm)-C128-C256-C512
+    leaky ReLUs with slope of 0.2
+
 	:param image_shape: image shape
 	:return: model
 	"""
-	init = RandomNormal(stddev=0.02)
 	in_image = Input(shape=image_shape)
-
-	d = Conv2D(64, (4, 4), strides=(2, 2), padding='same', kernel_initializer=init)(in_image)
+	filters = 64
+    #C64(no InstanceNorm)
+	d = Conv2D(filters, (4, 4), strides=(2, 2), padding='same', kernel_initializer=kernel_init)(in_image)
 	d = LeakyReLU(alpha=0.2)(d)
 
-	d = Conv2D(128, (4, 4), strides=(2, 2), padding='same', kernel_initializer=init)(d)
-	d = InstanceNormalization(axis=-1)(d)
-	d = LeakyReLU(alpha=0.2)(d)
+	filters2 = filters
+	for down_block in range(3):
+		filters2 *= 2
+		if down_block < 2:
+			d = downsample(d,filters=filters2,activation=LeakyReLU(alpha=0.2),kernel_size=(4, 4),strides=(2, 2)) #C128-C256
+		else:
+			d = downsample(d,filters=filters2,activation=LeakyReLU(alpha=0.2),kernel_size=(4, 4),strides=(1, 1)) #C512
 
-	d = Conv2D(256, (4, 4), strides=(2, 2), padding='same', kernel_initializer=init)(d)
-	d = InstanceNormalization(axis=-1)(d)
-	d = LeakyReLU(alpha=0.2)(d)
-
-	d = Conv2D(512, (4, 4), strides=(2, 2), padding='same', kernel_initializer=init)(d)
-	d = InstanceNormalization(axis=-1)(d)
-	d = LeakyReLU(alpha=0.2)(d)
-
-	d = Conv2D(512, (4, 4), padding='same', kernel_initializer=init)(d)
-	d = InstanceNormalization(axis=-1)(d)
-	d = LeakyReLU(alpha=0.2)(d)
-
-	patch_out = Conv2D(1, (4, 4), padding='same', kernel_initializer=init)(d)
+	patch_out = Conv2D(1, (4, 4), padding='same', kernel_initializer=kernel_init)(d)
 	model = Model(in_image, patch_out)
 	model.compile(loss='mse', optimizer=Adam(lr=0.0002, beta_1=0.5), loss_weights=[0.5])
 	return model
 
 
-def resnet_block(n_filters, input_layer):
+def define_generator(image_shape):
 	"""
-	:param n_filters:
-	:param input_layer:
-	:return: g
-	"""
-	init = RandomNormal(stddev=0.02)
-	g = Conv2D(n_filters, (3, 3), padding='same', kernel_initializer=init)(input_layer)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	g = Conv2D(n_filters, (3, 3), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Concatenate()([g, input_layer])
-	return g
+    Generator architecture (9 residual blocks for image size 256x256):
+	c7s1-64 - d128 - d256 - R256 - R256 - R256 - R256 - R256 - R256 - R256 - R256 - R256 - u128 - u64 - c7s1-3
 
-
-def define_generator(shape, n_resnet=9):
-	"""
-	:param shape:
-	:param n_resnet: default 9
+    :param image_shape:
 	:return: model
 	"""
-	init = RandomNormal(stddev=0.02)
-	in_image = Input(shape=shape)
+	in_image = Input(shape=image_shape)
+	filters = 64
+	down_blocks=2
+	up_blocks=2
 
-	g = Conv2D(64, (7, 7), padding='same', kernel_initializer=init)(in_image)
+	#c7s1-64
+	g = Conv2D(filters, (7, 7), padding='same', kernel_initializer=kernel_init)(in_image)
 	g = InstanceNormalization(axis=-1)(g)
 	g = Activation('relu')(g)
+    
+    #Downsample blocks (d128 - d256)
+	for _ in range(down_blocks):
+		filters *= 2
+		g = downsample(g, filters=filters,activation=Activation('relu'))
 
-	g = Conv2D(128, (3, 3), strides=(2, 2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
+    #Residual blocks (R256 x9)
+	for _ in range(res_blocks):
+		g = residual_block(256, g)
 
-	g = Conv2D(256, (3, 3), strides=(2, 2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-
-	for _ in range(n_resnet):
-		g = resnet_block(256, g)
-
-	g = Conv2DTranspose(128, (3, 3), strides=(2, 2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-
-	g = Conv2DTranspose(64, (3, 3), strides=(2, 2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-
-	g = Conv2D(3, (7, 7), padding='same', kernel_initializer=init)(g)
+    #Upsample blocks (u128 - u64)
+	for _ in range(up_blocks):
+		filters //= 2
+		g = upsample(g, filters,activation=Activation('relu'))
+    
+    #c7s1-3
+	g = Conv2D(3, (7, 7), padding='same', kernel_initializer=kernel_init)(g)
 	g = InstanceNormalization(axis=-1)(g)
 
 	out_image = Activation('tanh')(g)
@@ -233,16 +258,15 @@ def train(discriminator_a, generator_ab, generator_ba, composite_ba, dataset):
 	:param composite_ba:
 	:param dataset:
 	"""
-	n_epochs, n_batch, = 500, 1
 	n_patch = discriminator_a.output_shape[1]
 	trainA, trainB = dataset
 	poolA = list()
-	bat_per_epo = int(len(trainA) / n_batch)
-	n_steps = bat_per_epo * n_epochs
+	bat_per_epo = int(len(trainA) / batch_size)
+	n_steps = bat_per_epo * epochs
 	for i in range(n_steps):
 		print("Epochs: {0}/{1}".format(i, n_steps))
-		X_realA, y_realA = generate_real_samples(trainA, n_batch, n_patch)
-		X_realB, y_realB = generate_real_samples(trainB, n_batch, n_patch)
+		X_realA, y_realA = generate_real_samples(trainA, batch_size, n_patch)
+		X_realB, y_realB = generate_real_samples(trainB, batch_size, n_patch)
 		X_fakeA, y_fakeA = generate_fake_samples(generator_ba, X_realB, n_patch)
 		X_fakeA = update_image_pool(poolA, X_fakeA)
 
