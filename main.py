@@ -175,10 +175,10 @@ def save_models(step, g_model_BtoA):
 	"""
 	filename = 'models/g_model_BtoA_%06d.h5' % (step + 1)
 	g_model_BtoA.save(filename)
-	print('>Saved: %s' % filename)
+	print('Saved: %s' % filename)
 
 
-def summarize_performance(step, g_model, trainX, name, n_samples=5):
+def summarize_performance(step, g_model, trainX, n_samples=5):
 	"""
 	:param step:
 	:param g_model:
@@ -198,8 +198,9 @@ def summarize_performance(step, g_model, trainX, name, n_samples=5):
 		pyplot.subplot(2, n_samples, 1 + n_samples + i)
 		pyplot.axis('off')
 		pyplot.imshow(X_out[i])
-	filename = '%s_generated_plot_%06d.png' % (name, (step + 1))
-	pyplot.savefig('generated/' + filename)
+	filename = 'generated/generated_art_%06d.png' % (step + 1)
+	pyplot.savefig(filename)
+	print('Saved: %s' % filename)
 	pyplot.close()
 
 
@@ -251,7 +252,7 @@ def train(discriminator_a, generator_ab, generator_ba, composite_ba, dataset):
 
 		print('>%d, dA[%.3f,%.3f] g[%.3f]' % (i + 1, d_a_loss1, d_a_loss2, g_loss))
 		if (i + 1) % 100 == 0:
-			summarize_performance(i, generator_ba, trainB, 'BtoA')
+			summarize_performance(i, generator_ba, trainB)
 		if (i + 1) % 2500 == 0:
 			save_models(i, generator_ba)
 
