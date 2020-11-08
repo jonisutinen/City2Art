@@ -264,7 +264,7 @@ def train(discriminator_a, generator_ab, generator_ba, composite_ba, dataset):
 	bat_per_epo = int(len(trainA) / batch_size)
 	n_steps = bat_per_epo * epochs
 	for i in range(n_steps):
-		print("Epochs: {0}/{1}".format(i, n_steps))
+		print("Steps: {0}/{1}".format(i, n_steps))
 		X_realA, y_realA = generate_real_samples(trainA, batch_size, n_patch)
 		X_realB, y_realB = generate_real_samples(trainB, batch_size, n_patch)
 		X_fakeA, y_fakeA = generate_fake_samples(generator_ba, X_realB, n_patch)
@@ -275,7 +275,7 @@ def train(discriminator_a, generator_ab, generator_ba, composite_ba, dataset):
 		d_a_loss2 = discriminator_a.train_on_batch(X_fakeA, y_fakeA)
 
 		print('>%d, dA[%.3f,%.3f] g[%.3f]' % (i + 1, d_a_loss1, d_a_loss2, g_loss))
-		if (i + 1) % 100 == 0:
+		if (i + 1) % 1000 == 0:
 			summarize_performance(i, generator_ba, trainB)
 		if (i + 1) % 2500 == 0:
 			save_models(i, generator_ba)
